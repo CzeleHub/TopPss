@@ -17,41 +17,34 @@ use std::{
     path::PathBuf,
 };
 
-pub fn toprss(
-    collapse: bool,
-    group_count: bool,
-    separator: Separator,
-    how_many: usize,
-    unit: Option<Unit>,
-    path: PathBuf,
-) {
-    match std::fs::read_dir(path) {
+use crate::args_parser::ProgramArgs;
+
+pub fn toprss(program_args: ProgramArgs) {
+    match std::fs::read_dir(program_args.path.clone()) {
         Ok(proc) => {
             let mut procs = get_processes(proc);
 
-            if collapse {
+            if program_args.collapse {
                 let mut collapsed: HashMap<(usize, String), Process> = HashMap::new();
 
                 for process in procs.into_iter() {
                     if let Some(existing_process) =
                         collapsed.get_mut(&(process.ppid, process.name.clone()))
                     {
+                        existing_process.collapsed_count += 1;
                         existing_process.kB += process.kB;
                     } else {
                         collapsed.insert((process.ppid, process.name.clone()), process);
                     }
                 }
 
-                procs = collapsed
-                    .into_values()
-                    //.map(|v| (v.0, v.1))
-                    .collect::<Vec<Process>>();
+                procs = collapsed.into_values().collect::<Vec<Process>>();
             }
 
             procs.sort_by(|p1, p2| p1.kB.cmp(&p2.kB));
             procs = procs.into_iter().rev().collect::<Vec<Process>>();
 
-            display_processes(procs, how_many, group_count, unit, separator);
+            display_processes(procs, program_args);
         }
         Err(err) => {
             eprintln!("ERROR: {}", err);
@@ -103,21 +96,20 @@ fn try_new_process(status: &str, smaps_rollup: &str) -> Option<Process> {
         && let Some(str_kB) = pss.split_whitespace().nth(1)
         && let Ok(kB) = str_kB.parse::<usize>()
     {
-        Some(Process { ppid, name, kB })
+        Some(Process {
+            collapsed_count: 1,
+            ppid,
+            name,
+            kB,
+        })
     } else {
         None
     }
 }
 
-fn display_processes(
-    collection: Vec<Process>,
-    first_n_elements: usize,
-    group_count: bool,
-    option_unit: Option<Unit>,
-    separator: Separator,
-) {
-    collection.iter().take(first_n_elements).for_each(|p| {
-        let size = if let Some(unit) = &option_unit {
+fn display_processes(collection: Vec<Process>, program_args: ProgramArgs) {
+    collection.iter().take(program_args.first_n).for_each(|p| {
+        let size = if let Some(unit) = &program_args.unit {
             unit.string(p.kB)
         } else if p.kB < 1024 {
             Unit::kB.string(p.kB)
@@ -126,27 +118,25 @@ fn display_processes(
         } else {
             Unit::GB.string(p.kB)
         };
-        let output = if group_count {
-            // format!("[{}] {} {}{}", p.group_count, p, size, separator)
-            format!("TODO")
+        let output = if program_args.show_group_count {
+            format!("[{}] {} {}", p.collapsed_count, p.name, size)
         } else {
-            format!("{} {} ppid: {}{}", p.name, size, p.ppid, separator)
+            format!("{} {}", p.name, size)
         };
 
-        print!("{output}");
+        print!("{output}{}", program_args.separator);
     });
 }
 
-// #[derive(Clone)]
 #[allow(non_snake_case)]
 struct Process {
+    collapsed_count: usize,
     ppid: usize,
     name: String,
     pub kB: usize,
 }
 
 #[allow(non_camel_case_types)]
-// #[derive(Clone, Copy)]
 pub enum Unit {
     kB,
     MB,

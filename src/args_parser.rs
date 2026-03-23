@@ -15,11 +15,13 @@ use std::{
     io::Error,
     path::PathBuf,
     process::exit,
+    usize,
 };
 
 use crate::{
     help,
     top_pss::{Separator, Unit},
+    version,
 };
 pub struct ProgramArgs {
     pub collapse: bool,
@@ -45,9 +47,9 @@ impl ProgramArgs {
                     Self::match_long_arg(arg, &mut args_iter, &mut program_args_builder);
                 }
             } else if arg.starts_with("-") {
-                let mut arg_cp = arg.clone();
-                let _ = arg_cp.pop();
-                while let Some(c) = arg_cp.pop() {
+                let mut arg_cp = arg.chars();
+                let _ = arg_cp.next();
+                for c in arg_cp {
                     Self::match_short_arg(&c, &mut args_iter, &mut program_args_builder);
                 }
             } else {
@@ -70,6 +72,39 @@ impl ProgramArgs {
                 exit(1);
             }
 
+            "ungroup" => {
+                args_builder.set_collapse(false);
+            }
+
+            "version" => {
+                version();
+                exit(1);
+            }
+
+            "kb" => {
+                args_builder.set_unit(Some(Unit::kB));
+            }
+
+            "mb" => {
+                args_builder.set_unit(Some(Unit::MB));
+            }
+
+            "gb" => {
+                args_builder.set_unit(Some(Unit::GB));
+            }
+
+            "lines" => {
+                args_builder.set_separator(Separator::Lines);
+            }
+
+            "all" => {
+                args_builder.set_n(usize::MAX);
+            }
+
+            "group-count" => {
+                args_builder.set_show_group_count(true);
+            }
+
             _ => {
                 eprintln!("Error: Unknown argument '{arg}'");
                 exit(0);
@@ -88,6 +123,36 @@ impl ProgramArgs {
                 exit(1);
             }
 
+            'v' => {
+                version();
+                exit(1);
+            }
+
+            'u' => {
+                args_builder.set_collapse(false);
+            }
+
+            'n' => {
+                let expected_number = args_iter.next();
+                if let Some(number) = expected_number {
+                    match number.parse::<usize>() {
+                        Ok(n) => {
+                            args_builder.set_n(n);
+                        }
+                        Err(_) => {
+                            eprintln!("Error: Could not parse '{number}' into unsigned integer");
+                            exit(0);
+                        }
+                    }
+                } else {
+                    eprintln!("Error: found option '-n', but no number was provided");
+                    exit(0);
+                }
+            }
+
+            'a' => {
+                args_builder.set_n(usize::MAX);
+            }
             _ => {
                 eprintln!("Error: Unknown argument '{arg}'");
                 exit(0);
@@ -97,55 +162,6 @@ impl ProgramArgs {
 
     // fn match_long_arg(&mut self, arg: &str) {
     //     match arg {
-    //         "-h" | "--help" | "-H" | "-?" => {
-    //             help();
-    //             return;
-    //         }
-    //         "-v" | "--version" => {
-    //             println!("Toppss version: {VERSION}");
-    //             return;
-    //         }
-    //         "-u" | "--ungroup" => {
-    //             collapse = false;
-    //         }
-    //         "-n" => {
-    //             let expected_number = args_iter.next();
-    //             if let Some(number) = expected_number {
-    //                 match number.parse::<usize>() {
-    //                     Ok(n) => n_processess = n,
-    //                     Err(_) => {
-    //                         eprintln!("Error: Could not parse '{number}' into unsigned integer");
-    //                         return;
-    //                     }
-    //                 }
-    //             } else {
-    //                 eprintln!("Error: found option '-n', but no number was provided");
-    //                 return;
-    //             }
-    //         }
-    //         "--lines" => {
-    //             separator = Separator::Lines;
-    //         }
-
-    //         "-a" | "--all" => {
-    //             n_processess = usize::MAX;
-    //         }
-
-    //         "--group-count" => {
-    //             show_group_count = true;
-    //         }
-
-    //         "--kb" => {
-    //             unit = Some(Unit::kB);
-    //         }
-
-    //         "--mb" => {
-    //             unit = Some(Unit::MB);
-    //         }
-
-    //         "--gb" => {
-    //             unit = Some(Unit::GB);
-    //         }
 
     //         "--run-tests-this-option-is-hidden-and-intended-to-be-used-to-perform-tests-by-developer-this-option-name-is-annoingly-long-for-a-reason" =>
     //         {
@@ -194,34 +210,28 @@ impl ProgramArgsBuilder {
         }
     }
 
-    pub fn set_collapse(mut self, collapse: bool) -> Self {
+    pub fn set_collapse(&mut self, collapse: bool) {
         self.collapse = collapse;
-        self
     }
 
-    pub fn set_n(mut self, first_n: usize) -> Self {
+    pub fn set_n(&mut self, first_n: usize) {
         self.first_n = first_n;
-        self
     }
 
-    pub fn set_separator(mut self, separator: Separator) -> Self {
+    pub fn set_separator(&mut self, separator: Separator) {
         self.separator = separator;
-        self
     }
 
-    pub fn set_unit(mut self, unit: Option<Unit>) -> Self {
+    pub fn set_unit(&mut self, unit: Option<Unit>) {
         self.unit = unit;
-        self
     }
 
-    pub fn set_show_group_count(mut self, show_group_count: bool) -> Self {
+    pub fn set_show_group_count(&mut self, show_group_count: bool) {
         self.show_group_count = show_group_count;
-        self
     }
 
-    pub fn set_path(mut self, path: PathBuf) -> Self {
+    pub fn set_path(&mut self, path: PathBuf) {
         self.path = path;
-        self
     }
 
     pub fn build(self) -> ProgramArgs {

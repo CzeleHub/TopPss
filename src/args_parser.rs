@@ -105,6 +105,16 @@ impl ProgramArgs {
                 args_builder.set_show_group_count(true);
             }
 
+            "custom-separator" => {
+                let expected_custom_separator = args_iter.next();
+                if let Some(separator) = expected_custom_separator {
+                    args_builder.set_separator(Separator::Other(separator.clone()));
+                } else {
+                    eprintln!("Error: found option '-n', but no number was provided");
+                    exit(0);
+                }
+            }
+
             _ => {
                 eprintln!("Error: Unknown argument '{arg}'");
                 exit(0);
